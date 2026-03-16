@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>时间记录</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f5f5f5;--white:#fff;--border:#e8e8e8;--text:#2c2c2c;--muted:#999;--primary:#5b9bd5;--red:#e07b6a;--green:#7bc8a4;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans SC',sans-serif;font-size:14px;min-height:100vh;}
+.app{max-width:480px;margin:0 auto;padding-bottom:70px;}
+
+.topbar{background:var(--primary);color:#fff;padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+.topbar-title{font-size:17px;font-weight:700;letter-spacing:1px;}
+.topbar-date{font-size:12px;opacity:.85;}
+
+.page{display:none;}.page.active{display:block;}
+.wrap{padding:14px;}
+.card{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.lbl{font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;}
+
+/* ── 打点页 ── */
+.dot-wrap{display:flex;flex-direction:column;align-items:center;padding:40px 20px 20px;}
+
+/* 上一个点的信息 */
+.last-dot-info{background:#fff;border-radius:14px;padding:14px 20px;margin-bottom:32px;width:100%;box-shadow:0 1px 3px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px;}
+.last-dot-info.empty{justify-content:center;}
+.ldi-icon{font-size:26px;flex-shrink:0;}
+.ldi-text{flex:1;}
+.ldi-label{font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:2px;}
+.ldi-cat{font-size:15px;font-weight:700;}
+.ldi-time{font-size:12px;color:var(--muted);margin-top:2px;}
+.ldi-dur{font-size:18px;font-weight:700;color:var(--primary);flex-shrink:0;}
+.ldi-empty{font-size:13px;color:var(--muted);}
+
+/* 大打点按钮 */
+.dot-btn-wrap{position:relative;margin-bottom:24px;}
+.dot-ring{width:150px;height:150px;border-radius:50%;border:3px solid #ddd;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;}
+.dot-ring:active{transform:scale(.95);}
+.dot-inner{width:118px;height:118px;border-radius:50%;background:var(--primary);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:background .2s;box-shadow:0 4px 16px rgba(91,155,213,.35);}
+.dot-mark{font-size:36px;color:#fff;line-height:1;}
+.dot-text{font-size:13px;color:rgba(255,255,255,.9);font-weight:700;letter-spacing:2px;}
+
+/* 当前时间 */
+.current-time{font-size:13px;color:var(--muted);letter-spacing:1px;}
+
+/* 打点时间轴（今天的点） */
+.dot-timeline{width:100%;margin-top:8px;}
+.dot-tl-title{font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;text-align:center;}
+.dot-list{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.dot-item{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border);}
+.dot-item:last-child{border-bottom:none;}
+.di-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.di-info{flex:1;}
+.di-cat{font-size:13px;font-weight:500;}
+.di-time{font-size:11px;color:var(--muted);margin-top:1px;}
+.di-note{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;}
+.di-dur{font-size:14px;font-weight:700;color:var(--text);}
+.del-btn{background:none;border:none;font-size:14px;color:#ddd;cursor:pointer;padding:4px;}
+.del-btn:active{color:var(--red);}
+.empty-tip{text-align:center;padding:20px;color:var(--muted);font-size:13px;}
+
+/* ── 分类弹窗 ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none;align-items:flex-end;}
+.overlay.on{display:flex;}
+.sheet{background:#fff;border-radius:20px 20px 0 0;padding:20px 16px 34px;width:100%;max-width:480px;margin:0 auto;animation:up .22s ease;}
+@keyframes up{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.sheet-hd{text-align:center;margin-bottom:16px;}
+.sheet-dur{font-size:26px;font-weight:700;color:var(--primary);line-height:1;}
+.sheet-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.sheet-cats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+.sc{border:1.5px solid var(--border);border-radius:12px;padding:10px 4px;background:#fff;cursor:pointer;text-align:center;transition:all .15s;}
+.sc .ci{font-size:22px;display:block;margin-bottom:4px;}
+.sc .cn{font-size:11px;color:var(--muted);}
+.sc.sel{border-color:var(--sc,#5b9bd5);background:var(--sb,#eef4fb);}
+.sc.sel .cn{color:var(--sc,#5b9bd5);font-weight:500;}
+.sheet-note{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;color:var(--text);resize:none;margin-bottom:14px;}
+.sheet-note:focus{outline:none;border-color:var(--primary);}
+.sheet-note::placeholder{color:#ccc;}
+.sheet-save{width:100%;padding:14px;border-radius:12px;border:none;background:var(--primary);color:#fff;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:2px;}
+.sheet-save:active{opacity:.85;}
+
+/* ── 时间轴页 ── */
+.circle-wrap{background:#fff;border-radius:16px;padding:20px 16px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.circle-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.arr{background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;padding:0 8px;}
+.day-lbl{font-size:15px;font-weight:700;}
+.svg-c{display:flex;justify-content:center;}
+.tl-list{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden;}
+.tl-item{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);}
+.tl-item:last-child{border-bottom:none;}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.tl-info{flex:1;}
+.tl-cat{font-size:14px;font-weight:500;}
+.tl-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.tl-note{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;}
+.tl-dur{font-size:15px;font-weight:700;}
+.tl-del{background:none;border:none;font-size:15px;color:#ddd;cursor:pointer;padding:4px;}
+.tl-del:active{color:var(--red);}
+.empty-tl{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;line-height:2;}
+
+/* ── 统计页 ── */
+.period-row{display:flex;gap:6px;margin-bottom:12px;}
+.period-btn{flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .15s;}
+.period-btn.on{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:500;}
+.s-card{background:#fff;border-radius:14px;padding:18px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.s-title{font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:14px;}
+.s-nums{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.s-num{background:#f8f8f8;border-radius:10px;padding:12px 14px;}
+.s-big{font-size:22px;font-weight:700;color:var(--primary);}
+.s-lbl{font-size:11px;color:var(--muted);margin-top:3px;}
+.pie-wrap{display:flex;align-items:center;gap:16px;}
+.legend{flex:1;display:flex;flex-direction:column;gap:7px;}
+.leg-row{display:flex;align-items:center;gap:6px;}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.leg-name{flex:1;font-size:12px;}
+.leg-time{font-size:11px;color:var(--muted);margin-right:4px;}
+.leg-pct{font-size:12px;font-weight:500;min-width:34px;text-align:right;}
+.bar-list{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+.bar-row{display:flex;align-items:center;gap:8px;}
+.bar-lbl{width:60px;font-size:11px;color:var(--muted);text-align:right;flex-shrink:0;}
+.bar-track{flex:1;height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:5px;transition:width .5s;}
+.bar-val{width:42px;font-size:11px;color:var(--muted);text-align:right;flex-shrink:0;}
+.week-chart{display:flex;align-items:flex-end;gap:5px;height:80px;margin-top:8px;}
+.w-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;}
+.w-bw{flex:1;width:100%;display:flex;align-items:flex-end;}
+.w-b{width:100%;border-radius:3px 3px 0 0;min-height:3px;}
+.w-d{font-size:10px;color:var(--muted);}
+.w-d.td{color:var(--primary);font-weight:700;}
+
+.export-btn{width:100%;padding:12px;border-radius:10px;border:1.5px solid var(--primary);background:#fff;color:var(--primary);font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:1px;transition:all .15s;}
+.export-btn:active{background:var(--primary);color:#fff;}
+
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(12px);background:#2c2c2c;color:#fff;padding:9px 18px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:99;white-space:nowrap;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.bnav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);display:flex;max-width:480px;margin:0 auto;z-index:20;}
+.nb{flex:1;padding:10px 0 8px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;}
+.nb-icon{font-size:20px;display:block;}
+.nb-lbl{font-size:10px;color:var(--muted);margin-top:1px;display:block;}
+.nb.on .nb-lbl{color:var(--primary);font-weight:500;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="topbar-title">时间记录</div>
+    <div class="topbar-date" id="topDate"></div>
+  </div>
+
+  <!-- ══ 打点页 ══ -->
+  <div class="page active" id="page-record">
+    <div class="dot-wrap">
+
+      <!-- 上一个点的信息 -->
+      <div class="last-dot-info" id="lastDotInfo">
+        <div class="ldi-empty">今天还没有记录</div>
+      </div>
+
+      <!-- 大打点按钮 -->
+      <div class="dot-btn-wrap">
+        <div class="dot-ring" onclick="tapDot()">
+          <div class="dot-inner">
+            <div class="dot-mark">●</div>
+            <div class="dot-text">打点</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="current-time" id="currentTime"></div>
+
+      <!-- 今日打点列表 -->
+      <div class="dot-timeline" id="dotTimeline"></div>
+    </div>
+  </div>
+
+  <!-- ══ 时间轴页 ══ -->
+  <div class="page" id="page-timeline">
+    <div class="wrap">
+      <div class="circle-wrap">
+        <div class="circle-hd">
+          <button class="arr" onclick="shiftDay(-1)">‹</button>
+          <span class="day-lbl" id="circleDay">今天</span>
+          <button class="arr" onclick="shiftDay(1)">›</button>
+        </div>
+        <div class="svg-c"><svg id="clockSvg" width="260" height="260" viewBox="0 0 260 260"></svg></div>
+      </div>
+      <div class="tl-list" id="tlList"></div>
+    </div>
+  </div>
+
+  <!-- ══ 统计页 ══ -->
+  <div class="page" id="page-stats">
+    <div class="wrap">
+      <div class="period-row">
+        <button class="period-btn on" onclick="setPeriod('day',this)">今天</button>
+        <button class="period-btn" onclick="setPeriod('week',this)">本周</button>
+        <button class="period-btn" onclick="setPeriod('month',this)">本月</button>
+        <button class="period-btn" onclick="setPeriod('all',this)">全部</button>
+      </div>
+      <div class="s-card">
+        <div class="s-title">概览</div>
+        <div class="s-nums">
+          <div class="s-num"><div class="s-big" id="sTotal">0h</div><div class="s-lbl">已记录时长</div></div>
+          <div class="s-num"><div class="s-big" id="sCount">0</div><div class="s-lbl">记录条数</div></div>
+          <div class="s-num"><div class="s-big" id="sDays">0</div><div class="s-lbl">活跃天数</div></div>
+          <div class="s-num"><div class="s-big" id="sAvg">0h</div><div class="s-lbl">日均时长</div></div>
+        </div>
+        <div class="s-title" style="margin-top:4px;">近7天</div>
+        <div class="week-chart" id="weekChart"></div>
+      </div>
+      <div class="s-card">
+        <div class="s-title">分类分布</div>
+        <div class="pie-wrap">
+          <svg id="pieSvg" width="120" height="120" viewBox="0 0 120 120" style="flex-shrink:0;"></svg>
+          <div class="legend" id="pieLeg"></div>
+        </div>
+      </div>
+      <div class="s-card">
+        <div class="s-title">分类时长排行</div>
+        <div class="bar-list" id="barList"></div>
+      </div>
+      <div class="s-card">
+        <div class="s-title">导出数据</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.7;">导出全部记录为 CSV 文件，可用 Excel、Numbers 打开查看。</div>
+        <button class="export-btn" onclick="exportCSV()">⬇ 导出 CSV</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 打点弹窗 ══ -->
+<div class="overlay" id="overlay" onclick="overlayBg(event)">
+  <div class="sheet">
+    <div class="sheet-hd">
+      <div class="sheet-dur" id="sheetDur">--</div>
+      <div class="sheet-sub" id="sheetSub">刚才在做什么？</div>
+    </div>
+    <div class="sheet-cats" id="sheetCats"></div>
+    <textarea class="sheet-note" id="sheetNote" rows="2" placeholder="备注（可选）…"></textarea>
+    <button class="sheet-save" onclick="saveRecord()">记 录</button>
+  </div>
+</div>
+
+<div class="bnav">
+  <button class="nb on" id="nb-record" onclick="showPage('record',this)">
+    <span class="nb-icon">●</span><span class="nb-lbl">打点</span>
+  </button>
+  <button class="nb" id="nb-timeline" onclick="showPage('timeline',this)">
+    <span class="nb-icon">◷</span><span class="nb-lbl">时间轴</span>
+  </button>
+  <button class="nb" id="nb-stats" onclick="showPage('stats',this)">
+    <span class="nb-icon">◑</span><span class="nb-lbl">统计</span>
+  </button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const CATS=[
+  {name:'工作',icon:'💼',color:'#5b9bd5'},
+  {name:'学习',icon:'📖',color:'#7a9ecf'},
+  {name:'运动',icon:'🏃',color:'#7bc8a4'},
+  {name:'娱乐',icon:'🎮',color:'#b07ec8'},
+  {name:'社交',icon:'💬',color:'#e07b6a'},
+  {name:'休息',icon:'😴',color:'#f4a460'},
+  {name:'睡觉',icon:'🌙',color:'#7a8ecf'},
+  {name:'生活',icon:'🏠',color:'#a0b87e'},
+  {name:'短视频',icon:'📱',color:'#d98c8c'},
+  {name:'其他',icon:'✦',color:'#999'},
+];
+const DNAMES=['日','一','二','三','四','五','六'];
+
+let records = JSON.parse(localStorage.getItem('tr5')||'[]');
+// lastDot: 上一个打点的时间戳（毫秒），持久化
+let lastDot = parseInt(localStorage.getItem('tr5_lastdot')||'0')||null;
+let sheetCat = 0, viewDay = 0, curPeriod = 'day';
+let clockTick = null;
+
+function save(){ localStorage.setItem('tr5', JSON.stringify(records)); }
+function saveLastDot(ts){ lastDot=ts; if(ts) localStorage.setItem('tr5_lastdot',ts); else localStorage.removeItem('tr5_lastdot'); }
+
+function fmtMin(m){if(m<60)return m+'分钟';const h=Math.floor(m/60),r=m%60;return r?h+'小时'+r+'分钟':h+'小时';}
+function fmtShort(m){if(m<60)return m+'m';const h=Math.floor(m/60),r=m%60;return r?h+'h'+r+'m':h+'h';}
+function fmtTime(ts){const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
+function dayKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+function todayKey(){return dayKey(Date.now());}
+
+// 当前时间显示
+function tickClock(){
+  const now = new Date();
+  document.getElementById('currentTime').textContent =
+    now.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+// 更新顶部"上一个点"信息
+function renderLastDotInfo(){
+  const el = document.getElementById('lastDotInfo');
+  // 找最近一条记录（今天）
+  const todayRecs = records.filter(r=>dayKey(r.ts)===todayKey());
+  if(!lastDot && !todayRecs.length){
+    el.innerHTML='<div class="ldi-empty">今天还没有记录，打第一个点开始</div>';
+    el.classList.add('empty'); return;
+  }
+  el.classList.remove('empty');
+  const sinceTs = lastDot || Date.now();
+  const sinceMin = Math.round((Date.now()-sinceTs)/60000);
+  const last = todayRecs[0];
+  if(last){
+    el.innerHTML=`
+      <div class="ldi-icon">${last.icon}</div>
+      <div class="ldi-text">
+        <div class="ldi-label">上一段</div>
+        <div class="ldi-cat">${last.cat}</div>
+        <div class="ldi-time">${fmtTime(last.startTs||last.ts-last.dur*60000)} ~ ${fmtTime(last.ts)}</div>
+      </div>
+      <div class="ldi-dur">${fmtShort(last.dur)}</div>`;
+  } else {
+    el.innerHTML=`<div class="ldi-empty">距上次打点 ${fmtMin(sinceMin)}</div>`;
+  }
+}
+
+// 今日打点列表
+function renderDotList(){
+  const tl = document.getElementById('dotTimeline');
+  const recs = records.filter(r=>dayKey(r.ts)===todayKey());
+  if(!recs.length){ tl.innerHTML=''; return; }
+  const total = recs.reduce((s,r)=>s+r.dur,0);
+  tl.innerHTML=`
+    <div class="dot-tl-title">今日已记录 ${fmtMin(total)}</div>
+    <div class="dot-list">
+      ${recs.map(r=>`
+        <div class="dot-item">
+          <div class="di-dot" style="background:${r.color}"></div>
+          <div class="di-info">
+            <div class="di-cat">${r.icon} ${r.cat}</div>
+            <div class="di-time">${fmtTime(r.startTs||r.ts-r.dur*60000)} ~ ${fmtTime(r.ts)}</div>
+            ${r.note?`<div class="di-note">${r.note}</div>`:''}
+          </div>
+          <div class="di-dur">${fmtShort(r.dur)}</div>
+          <button class="del-btn" onclick="deleteRecord(${r.id})">✕</button>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── 打点 ──
+let pendingDotTs = null; // 本次打点时间
+
+function tapDot(){
+  pendingDotTs = Date.now();
+  // 计算距上次打点的时长
+  const sinceTs = lastDot;
+  const dur = sinceTs ? Math.max(1, Math.round((pendingDotTs - sinceTs)/60000)) : null;
+
+  sheetCat = 0;
+  renderSheetCats();
+  document.getElementById('sheetNote').value='';
+
+  if(dur){
+    document.getElementById('sheetDur').textContent = fmtMin(dur);
+    document.getElementById('sheetSub').textContent =
+      fmtTime(sinceTs) + ' ~ ' + fmtTime(pendingDotTs) + '，刚才在做什么？';
+  } else {
+    document.getElementById('sheetDur').textContent = fmtTime(pendingDotTs);
+    document.getElementById('sheetSub').textContent = '第一个点，刚才在做什么？';
+  }
+  document.getElementById('overlay').classList.add('on');
+}
+
+function renderSheetCats(){
+  document.getElementById('sheetCats').innerHTML = CATS.map((c,i)=>
+    `<button class="sc${i===sheetCat?' sel':''}" onclick="selSC(${i})"
+      ${i===sheetCat?`style="--sc:${c.color};--sb:${c.color}18"`:''}>
+      <span class="ci">${c.icon}</span><span class="cn">${c.name}</span>
+    </button>`).join('');
+}
+function selSC(i){ sheetCat=i; renderSheetCats(); }
+
+function saveRecord(){
+  const now = pendingDotTs || Date.now();
+  const sinceTs = lastDot;
+  const dur = sinceTs ? Math.max(1, Math.round((now - sinceTs)/60000)) : 1;
+  const note = document.getElementById('sheetNote').value.trim();
+  const cat = CATS[sheetCat];
+
+  records.unshift({
+    id: now,
+    cat: cat.name, icon: cat.icon, color: cat.color,
+    dur, note, ts: now,
+    startTs: sinceTs || now - 60000
+  });
+  save();
+  saveLastDot(now);
+
+  closeOverlay();
+  renderLastDotInfo();
+  renderDotList();
+  showToast(cat.icon+' '+cat.name+' '+fmtMin(dur)+' 已记录');
+}
+
+function overlayBg(e){ if(e.target===document.getElementById('overlay')) closeOverlay(); }
+function closeOverlay(){ document.getElementById('overlay').classList.remove('on'); }
+
+function deleteRecord(id){
+  records = records.filter(r=>r.id!==id);
+  save();
+  renderLastDotInfo();
+  renderDotList();
+  renderTimeline();
+  renderStats();
+  showToast('已删除');
+}
+
+// ── 时间轴 ──
+function shiftDay(d){ viewDay+=d; if(viewDay>0)viewDay=0; renderTimeline(); }
+function getDayRecs(){ const t=new Date(); t.setDate(t.getDate()+viewDay); return records.filter(r=>dayKey(r.ts)===dayKey(t.getTime())); }
+function renderTimeline(){
+  const recs=getDayRecs(), d=new Date(); d.setDate(d.getDate()+viewDay);
+  document.getElementById('circleDay').textContent = viewDay===0?'今天':viewDay===-1?'昨天':d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'});
+  drawClock(recs,d);
+  const list=document.getElementById('tlList');
+  if(!recs.length){list.innerHTML='<div class="empty-tl">这天还没有记录</div>';return;}
+  list.innerHTML=recs.map(r=>`
+    <div class="tl-item">
+      <div class="tl-dot" style="background:${r.color}"></div>
+      <div class="tl-info">
+        <div class="tl-cat">${r.icon} ${r.cat}</div>
+        <div class="tl-sub">${fmtTime(r.startTs||r.ts-r.dur*60000)} ~ ${fmtTime(r.ts)}</div>
+        ${r.note?`<div class="tl-note">${r.note}</div>`:''}
+      </div>
+      <div class="tl-dur">${fmtShort(r.dur)}</div>
+      <button class="tl-del" onclick="deleteRecord(${r.id})">✕</button>
+    </div>`).join('');
+}
+function drawClock(recs,dayDate){
+  const svg=document.getElementById('clockSvg');
+  const cx=130,cy=130,r=110,inner=80,sw=28,mr=(r+inner)/2;
+  let h=`<circle cx="${cx}" cy="${cy}" r="${mr}" fill="none" stroke="#f0f0f0" stroke-width="${sw}"/>`;
+  for(let i=0;i<24;i+=2){const a=(i/24)*Math.PI*2-Math.PI/2;h+=`<text x="${(cx+(r+16)*Math.cos(a)).toFixed(1)}" y="${(cy+(r+16)*Math.sin(a)).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-size="9" fill="#bbb" font-family="sans-serif">${i}</text>`;}
+  recs.forEach(rec=>{
+    const ds=new Date(dayDate);ds.setHours(0,0,0,0);const dm=86400000;
+    const st=rec.startTs||rec.ts-rec.dur*60000;
+    const s=Math.max(0,(st-ds.getTime())/dm),e=Math.min(1,(rec.ts-ds.getTime())/dm);
+    if(e<=s)return;
+    const a1=s*Math.PI*2-Math.PI/2,a2=e*Math.PI*2-Math.PI/2;
+    h+=`<path d="M${(cx+mr*Math.cos(a1)).toFixed(2)},${(cy+mr*Math.sin(a1)).toFixed(2)} A${mr},${mr} 0 ${(e-s)>.5?1:0} 1 ${(cx+mr*Math.cos(a2)).toFixed(2)},${(cy+mr*Math.sin(a2)).toFixed(2)}" fill="none" stroke="${rec.color}" stroke-width="${sw}" stroke-linecap="round"/>`;
+  });
+  if(viewDay===0){const now=new Date();const pct=(now.getHours()*60+now.getMinutes())/(24*60);const a=pct*Math.PI*2-Math.PI/2;h+=`<circle cx="${(cx+mr*Math.cos(a)).toFixed(1)}" cy="${(cy+mr*Math.sin(a)).toFixed(1)}" r="6" fill="#fff" stroke="#5b9bd5" stroke-width="2.5"/>`;}
+  const tot=recs.reduce((s,r)=>s+r.dur,0);
+  h+=`<text x="${cx}" y="${cy-10}" text-anchor="middle" font-size="12" fill="#999" font-family="sans-serif">总时长</text><text x="${cx}" y="${cy+10}" text-anchor="middle" font-size="15" font-weight="700" fill="#2c2c2c" font-family="sans-serif">${fmtMin(tot)}</text>`;
+  svg.innerHTML=h;
+}
+
+// ── 统计 ──
+function setPeriod(p,el){curPeriod=p;document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderStats();}
+function getFiltered(){
+  const now=new Date();
+  if(curPeriod==='day')return records.filter(r=>dayKey(r.ts)===todayKey());
+  if(curPeriod==='week'){const s=new Date(now);s.setDate(now.getDate()-now.getDay());s.setHours(0,0,0,0);return records.filter(r=>r.ts>=s.getTime());}
+  if(curPeriod==='month')return records.filter(r=>r.ts>=new Date(now.getFullYear(),now.getMonth(),1).getTime());
+  return records;
+}
+function renderStats(){
+  const recs=getFiltered(),total=recs.reduce((s,r)=>s+r.dur,0),days=new Set(recs.map(r=>dayKey(r.ts))).size||1;
+  document.getElementById('sTotal').textContent=fmtShort(total);
+  document.getElementById('sCount').textContent=recs.length;
+  document.getElementById('sDays').textContent=days;
+  document.getElementById('sAvg').textContent=fmtShort(Math.round(total/days));
+  const wc=document.getElementById('weekChart'),w7=[];
+  for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);w7.push({l:DNAMES[d.getDay()],m:records.filter(r=>dayKey(r.ts)===dayKey(d.getTime())).reduce((s,r)=>s+r.dur,0),t:i===0});}
+  const mw=Math.max(...w7.map(d=>d.m),60);
+  wc.innerHTML=w7.map(d=>`<div class="w-col"><div class="w-bw"><div class="w-b" style="height:${Math.max(3,Math.round(d.m/mw*64))}px;background:${d.t?'#5b9bd5':'#c8dcf0'}"></div></div><div class="w-d${d.t?' td':''}">${d.l}</div></div>`).join('');
+  const cm={};recs.forEach(r=>{if(!cm[r.cat])cm[r.cat]={m:0,c:r.color,i:r.icon};cm[r.cat].m+=r.dur;});
+  const cats=Object.entries(cm).sort((a,b)=>b[1].m-a[1].m);
+  drawPie(cats,total);
+  const mb=cats[0]?.[1].m||1;
+  document.getElementById('barList').innerHTML=cats.length?cats.map(([n,d])=>`<div class="bar-row"><div class="bar-lbl">${d.i} ${n}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.m/mb*100)}%;background:${d.c}"></div></div><div class="bar-val">${fmtShort(d.m)}</div></div>`).join(''):'<div style="color:#bbb;font-size:13px;text-align:center;padding:16px">暂无数据</div>';
+}
+function drawPie(cats,total){
+  const svg=document.getElementById('pieSvg'),leg=document.getElementById('pieLeg');
+  if(!total||!cats.length){svg.innerHTML='<text x="60" y="64" text-anchor="middle" font-size="11" fill="#bbb">暂无数据</text>';leg.innerHTML='';return;}
+  const cx=60,cy=60,r=50,inn=28;let ang=-Math.PI/2,p='';
+  cats.forEach(([n,d])=>{const pc=d.m/total,a2=ang+pc*Math.PI*2;const x1=cx+r*Math.cos(ang),y1=cy+r*Math.sin(ang),x2=cx+r*Math.cos(a2),y2=cy+r*Math.sin(a2);p+=`<path d="M${cx},${cy} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${pc>.5?1:0} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z" fill="${d.c}" opacity=".9"/>`;ang=a2;});
+  p+=`<circle cx="${cx}" cy="${cy}" r="${inn}" fill="#fff"/><text x="${cx}" y="${cy-5}" text-anchor="middle" font-size="9" fill="#999" font-family="sans-serif">总时长</text><text x="${cx}" y="${cy+9}" text-anchor="middle" font-size="12" font-weight="700" fill="#2c2c2c" font-family="sans-serif">${fmtShort(total)}</text>`;
+  svg.innerHTML=p;
+  leg.innerHTML=cats.slice(0,6).map(([n,d])=>`<div class="leg-row"><div class="leg-dot" style="background:${d.c}"></div><div class="leg-name">${n}</div><div class="leg-time">${fmtShort(d.m)}</div><div class="leg-pct">${Math.round(d.m/total*100)}%</div></div>`).join('');
+}
+
+function exportCSV(){
+  if(!records.length){showToast('还没有记录');return;}
+  const rows=[['日期','开始时间','结束时间','时长(分钟)','分类','备注']];
+  [...records].reverse().forEach(r=>{
+    const end=new Date(r.ts);
+    const start=new Date(r.startTs||r.ts-r.dur*60000);
+    const date=end.toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'});
+    const s=start.getHours().toString().padStart(2,'0')+':'+start.getMinutes().toString().padStart(2,'0');
+    const e=end.getHours().toString().padStart(2,'0')+':'+end.getMinutes().toString().padStart(2,'0');
+    rows.push([date,s,e,r.dur,r.cat,r.note||'']);
+  });
+  const csv='\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const d=new Date();
+  a.download='时间记录_'+d.getFullYear()+(d.getMonth()+1).toString().padStart(2,'0')+d.getDate().toString().padStart(2,'0')+'.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('已导出 '+records.length+' 条记录');
+}
+
+function showPage(name,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('page-'+name).classList.add('active');el.classList.add('on');
+  if(name==='timeline')renderTimeline();
+  if(name==='stats')renderStats();
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+
+// 顶部日期
+function updateTopDate(){
+  const now=new Date();
+  document.getElementById('topDate').textContent=now.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric',weekday:'short'});
+}
+
+// init
+updateTopDate();
+tickClock();
+clockTick = setInterval(tickClock, 1000);
+renderLastDotInfo();
+renderDotList();
+</script>
+</body>
+</html>
